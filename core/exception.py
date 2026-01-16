@@ -1,3 +1,0 @@
-# UnsupportedFileTypeError
-# DocumentParseError
-# EmptyDocumentError
