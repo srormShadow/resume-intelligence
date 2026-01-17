@@ -12,8 +12,8 @@ import re
 import unicodedata
 from typing import List
 
-from core.document import Document
-from core.exception import DocumentParseError
+from resume_intelligence.core.document import Document
+from resume_intelligence.core.exception import DocumentParseError
 
 
 BULLET_PATTERNS = [

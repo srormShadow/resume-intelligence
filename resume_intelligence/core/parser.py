@@ -23,7 +23,7 @@ from typing import Callable
 import pdfplumber
 from docx import Document as DocxDocument
 
-from core.exception import (
+from resume_intelligence.core.exception import (
     UnsupportedFileTypeError,
     DocumentParseError
 )

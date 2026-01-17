@@ -24,27 +24,6 @@ This repository is intentionally built in **phases**, starting with a strong doc
 
 ---
 
-## 🧱 Current Phase: Phase One — Foundations
-
-Phase One focuses on **reliable document ingestion and normalization**.
-
-### What is implemented:
-- PDF, DOCX, and text parsing
-- Canonical `Document` model
-- Text normalization pipeline
-- Explicit exception handling
-- Test scaffolding for core components
-
-### What is NOT implemented yet:
-- Skill extraction
-- Matching or scoring
-- Semantic similarity
-- AI/ML models
-
-These will be introduced incrementally in later phases.
-
----
-
 ## 🗂️ Project Structure
 
 resume_intelligence/
@@ -72,21 +51,74 @@ resume_intelligence/
 └── README.md
 
 yaml
-Copy code
 
 ---
 
-## 🧠 Core Concepts
+PHRASE 1
+This commit completes Phase 1 of the Resume Intelligence system by establishing
+a reliable document ingestion and normalization foundation.
 
-### Document Model
-A `Document` represents a resume or job description at different stages of processing:
-- Raw extracted text
-- Normalized clean text
-- Sentence-level representation
-- Metadata
+Key highlights:
 
-This ensures a **single source of truth** throughout the pipeline.
+- Implemented a unified Document model to represent raw and normalized content
+  - Stores clean_text and sentence-level representations
+  - Serves as the single source of truth for downstream semantic processing
 
-### Normalization
-Normalization converts noisy, human-written documents into consistent, machine-friendly text while preserving semantic meaning.  
-This step is critical for reliable downstream NLP and semantic analysis.
+- Added robust document parsing support
+  - PDF parsing using pdfplumber
+  - Plain text handling for job descriptions and test inputs
+  - Clear error handling for unsupported or malformed files
+
+- Introduced text normalization pipeline
+  - Lowercasing and whitespace normalization
+  - Sentence segmentation for fine-grained semantic analysis
+  - Defensive validation to ensure documents are normalized before further processing
+
+- Established clean project structure and core abstractions
+  - Separated parsing, normalization, and domain models
+  - Prepared the architecture for future semantic and matching layers
+
+Outcome:
+- Enables consistent, predictable input for semantic extraction
+- Eliminates document-format variability as a source of error
+- Provides a stable and extensible foundation for Phase 2 (semantic concept extraction)
+
+
+PHRASE 2
+This commit completes Phase 2 of the Resume Intelligence pipeline by introducing
+robust, language-aware semantic concept extraction.
+
+Key highlights:
+
+- Implemented linguistic concept extraction using spaCy
+  - Noun phrase extraction for skills, tools, and domains
+  - Verb-based extraction for experience and practices
+
+- Added multi-stage semantic normalization
+  - Lemmatization and stopword cleanup
+  - Verb canonicalization (e.g., "unit test" → "testing",
+    "restful apis" → "api integration")
+
+- Introduced concept validation and noise filtering
+  - Removed pronouns, filler phrases, and role-only context
+  - Enforced minimum semantic density for extracted concepts
+
+- Implemented confidence scoring based on:
+  - Frequency of occurrence
+  - Action-based linguistic strength
+  - Emphasis signals in sentences
+  - Caps for overly generic concepts
+
+- Added concept typing for downstream intelligence
+  - skill, practice, tool, role_context
+  - Automatically filtered role_context concepts
+
+- Implemented concept consolidation layer
+  - Collapsed duplicate and variant concepts into canonical forms
+  - Preserved strongest confidence and merged evidence sentences
+  - Maintained immutability of Concept objects
+
+Outcome:
+- Produces clean, canonical, ATS-grade semantic concepts
+- Output is domain-agnostic, explainable, and ready for similarity matching
+- Establishes a stable foundation for Phase 3 (semantic matching & gap analysis)
