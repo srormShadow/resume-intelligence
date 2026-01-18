@@ -43,17 +43,23 @@
 #   ]
 # }
 
-
 from typing import Dict, List
 
 import numpy as np
 
-from resume_intelligence.core.semantics.concept import Concept
+from resume_intelligence.core.semantics.concept import Concept, ConceptType
 from resume_intelligence.core.matching.embedder import ConceptEmbedder
 from resume_intelligence.core.matching.similarity import similarity_matrix
 
-from resume_intelligence.core.semantics.concept import ConceptType
 
+# Thresholds for semantic matching
+STRONG_MATCH_THRESHOLD = 0.75
+PARTIAL_MATCH_THRESHOLD = 0.55
+
+
+# -------------------------
+# Concept type compatibility
+# -------------------------
 TYPE_COMPATIBILITY = {
     ConceptType.SKILL: {ConceptType.SKILL, ConceptType.PRACTICE},
     ConceptType.TOOL: {ConceptType.TOOL},
@@ -62,15 +68,10 @@ TYPE_COMPATIBILITY = {
 }
 
 
-
-# Thresholds for semantic matching
-STRONG_MATCH_THRESHOLD = 0.75
-PARTIAL_MATCH_THRESHOLD = 0.55
-
-
 class ConceptMatcher:
     """
-    Matches JD concepts against resume concepts using semantic similarity.
+    Matches JD concepts against resume concepts using
+    type-aware semantic similarity.
     """
 
     def __init__(self, embedder: ConceptEmbedder | None = None):
@@ -81,23 +82,9 @@ class ConceptMatcher:
         jd_concepts: List[Concept],
         resume_concepts: List[Concept],
     ) -> Dict[str, List[Dict]]:
-        """
-        Perform semantic matching between JD and resume concepts.
-
-        Returns:
-            Dictionary with matched, partial, and missing concepts.
-        """
 
         if not jd_concepts:
             return {"matched": [], "partial": [], "missing": []}
-
-        jd_texts = [c.text for c in jd_concepts]
-        resume_texts = [c.text for c in resume_concepts]
-
-        jd_vectors = self._embedder.embed_texts(jd_texts)
-        resume_vectors = self._embedder.embed_texts(resume_texts)
-
-        sim_matrix = similarity_matrix(jd_vectors, resume_vectors)
 
         results = {
             "matched": [],
@@ -105,15 +92,34 @@ class ConceptMatcher:
             "missing": [],
         }
 
-        for i, jd_concept in enumerate(jd_concepts):
-            if resume_vectors:
-                similarities = sim_matrix[i]
-                best_idx = int(np.argmax(similarities))
-                best_score = float(similarities[best_idx])
-                best_resume_text = resume_texts[best_idx]
-            else:
-                best_score = 0.0
-                best_resume_text = None
+        for jd_concept in jd_concepts:
+            # 🔒 Filter resume concepts by compatible types
+            allowed_types = TYPE_COMPATIBILITY.get(jd_concept.type, set())
+            filtered_resume = [
+                rc for rc in resume_concepts if rc.type in allowed_types
+            ]
+
+            if not filtered_resume:
+                results["missing"].append({
+                    "jd_concept": jd_concept.text,
+                    "jd_type": jd_concept.type,
+                    "score": 0.0,
+                    "matched_resume_concept": None,
+                })
+                continue
+
+            jd_vector = self._embedder.embed_texts([jd_concept.text])[0]
+            resume_texts = [rc.text for rc in filtered_resume]
+            resume_vectors = self._embedder.embed_texts(resume_texts)
+
+            similarities = similarity_matrix(
+                [jd_vector],
+                resume_vectors,
+            )[0]
+
+            best_idx = int(np.argmax(similarities))
+            best_score = float(similarities[best_idx])
+            best_resume_text = resume_texts[best_idx]
 
             record = {
                 "jd_concept": jd_concept.text,
@@ -130,4 +136,3 @@ class ConceptMatcher:
                 results["missing"].append(record)
 
         return results
-
