@@ -285,12 +285,12 @@ def _infer_concept_type(text: str) -> ConceptType:
     tokens = set(text.split())
 
     if tokens & _ROLE_KEYWORDS:
-        return "role_context"
+        return ConceptType.ROLE_CONTEXT
 
     if tokens & _PRACTICE_KEYWORDS:
-        return "practice"
+        return ConceptType.PRACTICE
 
     if tokens & _TOOL_KEYWORDS:
-        return "tool"
+        return ConceptType.TOOL
 
-    return "skill"
+    return ConceptType.SKILL

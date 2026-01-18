@@ -68,7 +68,8 @@ def _split_sentences(text: str) -> List[str]:
 
 
 def normalize_document(doc: Document) -> Document:
-    if not doc or not doc.raw_text:
+
+    if not doc.raw_text or not doc.raw_text.strip() or not doc or not doc.raw_text:
         raise DocumentParseError("Cannot normalize empty document.")
 
     text = doc.raw_text

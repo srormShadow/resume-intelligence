@@ -1,97 +1,130 @@
-# Purpose:
-
-# Manual testing
-# Debugging
-# Quick validation
-import sys
+import typer
+from rich.console import Console
+from rich.table import Table
 from pathlib import Path
 
-from resume_intelligence.core.parser import parse_document
-from resume_intelligence.core.normalizer import normalize_document
 from resume_intelligence.core.document import Document
-from resume_intelligence.core.exception import (
-    DocumentParseError,
-    UnsupportedFileTypeError,
-)
+from resume_intelligence.core.normalizer import normalize_document
+from resume_intelligence.core.parser import parse_document
 from resume_intelligence.core.semantics.extractor import extract_concepts
 from resume_intelligence.core.semantics.consolidator import consolidate_concepts
+from resume_intelligence.core.semantics.concept import ConceptSource
+from resume_intelligence.core.matching.matcher import ConceptMatcher
+from resume_intelligence.core.matching.ats_score import compute_ats_score
+from resume_intelligence.core.exception import DocumentParseError
 
 
-def print_usage() -> None:
-    print("\nUsage:")
-    print("  python app/cli.py <path_to_resume_or_jd>\n")
-    print("Example:")
-    print("  python app/cli.py data/samples/resume.pdf\n")
+app = typer.Typer(help="ATS-grade Resume ↔ Job Description Matcher")
+console = Console()
 
 
-def main() -> None:
-    # ---- Argument validation
-    if len(sys.argv) != 2:
-        print_usage()
-        sys.exit(1)
+@app.command()
+def match(
+    resume: Path = typer.Argument(..., help="Path to resume file (PDF/TXT)"),
+    jd: Path = typer.Argument(..., help="Path to job description file (TXT)"),
+):
+    """
+    Compare a resume against a job description and compute ATS match score.
+    """
 
-    file_path = Path(sys.argv[1])
-
-    if not file_path.exists():
-        print(f"\nError: File not found → {file_path}\n")
-        sys.exit(1)
+    console.rule("[bold blue]ATS Resume Matcher[/bold blue]")
 
     try:
-        # ---- Phase 1: Parsing
-        raw_text = parse_document(str(file_path))
-        doc = Document(raw_text, metadata={"source": str(file_path)})
+        # -------------------------
+        # Parse & normalize resume
+        # -------------------------
+        console.print("📄 Parsing resume...")
+        resume_text = parse_document(str(resume))
+        resume_doc = Document(raw_text=resume_text)
+        normalize_document(resume_doc)
 
-        # ---- Phase 1: Normalization
-        doc = normalize_document(doc)
+        # -------------------------
+        # Parse & normalize JD
+        # -------------------------
+        console.print("📄 Parsing job description...")
+        jd_text = parse_document(str(jd))
+        jd_doc = Document(raw_text=jd_text)
+        normalize_document(jd_doc)
 
-        # Explicit state assertion (important for typing & correctness)
-        assert doc.clean_text is not None
+        # -------------------------
+        # Extract & consolidate concepts
+        # -------------------------
+        console.print("🧠 Extracting resume concepts...")
+        resume_concepts = consolidate_concepts(
+            extract_concepts(resume_doc, ConceptSource.RESUME)
+        )
 
-        # ---- Diagnostics
-        print("\nDocument loaded successfully\n")
-        print(f"File: {file_path.name}")
-        print(f"Raw text length   : {len(doc.raw_text)} characters")
-        print(f"Clean text length : {len(doc.clean_text)} characters")
-        print(f"Sentence count    : {len(doc.sentences)}\n")
+        console.print("🧠 Extracting JD concepts...")
+        jd_concepts = consolidate_concepts(
+            extract_concepts(jd_doc, ConceptSource.JD)
+        )
 
-        print("Sample sentences:")
-        for sentence in doc.sentences[:5]:
-            print(f"- {sentence}")
+        if not jd_concepts:
+            raise ValueError("No valid concepts found in job description.")
 
-        # ---- Phase 2: Concept Extraction
-        raw_concepts = extract_concepts(doc, source="resume")
-        concepts = consolidate_concepts(raw_concepts)
+        # -------------------------
+        # Semantic matching
+        # -------------------------
+        console.print("🔍 Performing semantic matching...")
+        matcher = ConceptMatcher()
+        match_results = matcher.match(jd_concepts, resume_concepts)
 
-        print("\nExtracted Concepts:")
-        if not concepts:
-            print("⚠️  No concepts extracted.")
-        else:
-            for concept in sorted(
-                concepts, key=lambda c: c.confidence, reverse=True
-            ):
-                print(
-                    f"- {concept.text:<30} "
-                    f"| confidence={concept.confidence} "
-                    f"| sentences={len(concept.sentences)}"
-                )
+        # -------------------------
+        # ATS score
+        # -------------------------
+        ats_score = compute_ats_score(jd_concepts, match_results)
 
-    except UnsupportedFileTypeError as e:
-        print(f"\nUnsupported file type:\n{e}\n")
-        sys.exit(2)
+    except FileNotFoundError as e:
+        console.print(f"[bold red]File not found:[/bold red] {e}")
+        raise typer.Exit(code=1)
 
     except DocumentParseError as e:
-        print(f"\nFailed to process document:\n{e}\n")
-        sys.exit(3)
+        console.print(f"[bold red]Document error:[/bold red] {e}")
+        raise typer.Exit(code=1)
 
-    except AssertionError:
-        print("\nInternal error: document normalization state invalid.\n")
-        sys.exit(4)
+    except ValueError as e:
+        console.print(f"[bold red]Invalid input:[/bold red] {e}")
+        raise typer.Exit(code=1)
 
-    except Exception as e:
-        print("\nUnexpected error occurred.\n")
-        print(str(e))
-        sys.exit(99)
+    # ❌ DO NOT catch bare Exception — let real bugs crash
+    # except Exception as e:
+    #     console.print(f"[bold red]Unexpected error:[/bold red] {e}")
+    #     raise typer.Exit(code=1)
+
+    # -------------------------
+    # Display results
+    # -------------------------
+    console.rule("[bold green]ATS Match Result[/bold green]")
+    console.print(f"🎯 [bold]ATS Match Score:[/bold] [green]{ats_score}%[/green]\n")
+
+    def render_table(title, rows, color):
+        table = Table(title=title, title_style=color)
+        table.add_column("JD Concept", style="bold")
+        table.add_column("Type")
+        table.add_column("Score")
+        table.add_column("Matched Resume Concept")
+
+        for r in rows:
+            table.add_row(
+                r["jd_concept"],
+                r["jd_type"].value,
+                str(r["score"]),
+                r["matched_resume_concept"] or "-",
+            )
+
+        console.print(table)
+
+    if match_results["matched"]:
+        render_table("✅ Matched Concepts", match_results["matched"], "green")
+
+    if match_results["partial"]:
+        render_table("⚠️ Partially Matched Concepts", match_results["partial"], "yellow")
+
+    if match_results["missing"]:
+        render_table("❌ Missing Concepts", match_results["missing"], "red")
+
+    console.rule("[bold blue]Done[/bold blue]")
 
 
 if __name__ == "__main__":
-    main()
+    app()

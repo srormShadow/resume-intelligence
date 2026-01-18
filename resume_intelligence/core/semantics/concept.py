@@ -24,15 +24,17 @@
 
 from dataclasses import dataclass
 from typing import List, Literal
+from enum import Enum
 
-ConceptType = Literal[
-    "skill",
-    "practice",
-    "tool",
-    "role_context",
-]
+class ConceptType(Enum):
+    SKILL = "skill"
+    PRACTICE = "practice"
+    TOOL = "tool"
+    ROLE_CONTEXT = "role_context"
 
-ConceptSource = Literal["resume", "jd"]
+class ConceptSource(Enum):
+    RESUME = "resume"
+    JD = "jd"
 
 
 @dataclass(frozen=True)

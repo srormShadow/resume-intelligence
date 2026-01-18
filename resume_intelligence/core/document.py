@@ -21,14 +21,15 @@ class Document:
         raw_text: str,
         metadata: Optional[Dict] = None
     ):
-        if not raw_text or not raw_text.strip():
-            raise ValueError("Document cannot be created with empty text.")
+        if not isinstance(raw_text, str):
+            raise TypeError("raw_text must be a string")
 
         self.raw_text: str = raw_text
+        self.metadata: Optional[Dict] = metadata
+
+        # Populated by normalization
         self.clean_text: Optional[str] = None
         self.sentences: List[str] = []
-
-        self.metadata: Dict = metadata or {}
 
     def set_clean_text(self, clean_text: str) -> None:
         if not clean_text or not clean_text.strip():
