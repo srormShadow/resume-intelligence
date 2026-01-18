@@ -51,7 +51,14 @@ from resume_intelligence.core.semantics.concept import Concept, ConceptSource, C
 # -------------------------------------------------------------------
 # spaCy model (loaded once for performance)
 # -------------------------------------------------------------------
-_NLP = spacy.load("en_core_web_sm")
+_NLP = None
+
+def get_nlp():
+    global _NLP
+    if _NLP is None:
+        import spacy
+        _NLP = spacy.load("en_core_web_sm")
+    return _NLP
 
 
 # -------------------------------------------------------------------
@@ -125,7 +132,8 @@ _TOOL_KEYWORDS = {
 # -------------------------------------------------------------------
 def _normalize_phrase(text: str) -> str:
     """Normalize a phrase into canonical form."""
-    doc = _NLP(text.lower().strip())
+    nlp = get_nlp()
+    doc = nlp(text.lower().strip())
     tokens = [
         token.lemma_
         for token in doc
@@ -236,7 +244,8 @@ def extract_concepts(
 
     # ---- Sentence-level processing
     for sentence in document.sentences:
-        spacy_doc = _NLP(sentence)
+        nlp = get_nlp()
+        spacy_doc = nlp(sentence)
 
         # Noun phrases
         for phrase in _extract_noun_phrases(spacy_doc):
