@@ -17,16 +17,22 @@
 # possible = 1.0×0.8 + 0.6×0.6 + 0.8×0.7 = 1.72
 
 # ATS score = 1.208 / 1.72 = 70.2%
-
 from typing import Dict, List
 
 from resume_intelligence.core.semantics.concept import Concept, ConceptType
 
 
 TYPE_WEIGHTS = {
-    ConceptType.SKILL : 1.0,
-    ConceptType.PRACTICE : 0.8,
-    ConceptType.TOOL : 0.6,
+    ConceptType.SKILL: 1.0,
+    ConceptType.TOOL: 0.9,
+    ConceptType.PRACTICE: 0.8,
+    ConceptType.ROLE_CONTEXT: 0.3,
+}
+
+MATCH_QUALITY_WEIGHTS = {
+    "matched": 1.0,
+    "partial": 0.7,
+    "missing": 0.0,
 }
 
 
@@ -46,24 +52,40 @@ def compute_ats_score(
     """
 
     # Map JD concept → similarity score
-    similarity_map = {}
+    match_map = {}
 
     for bucket in ("matched", "partial", "missing"):
         for record in match_results[bucket]:
-            similarity_map[record["jd_concept"]] = record["score"]
+            match_map[record["jd_concept"]] = {
+                "similarity": record["score"],
+                "bucket": bucket,
+            }
 
     total_weighted_score = 0.0
     total_possible_score = 0.0
 
     for concept in jd_concepts:
-        similarity = similarity_map.get(concept.text, 0.0)
         confidence = concept.confidence
         type_weight = TYPE_WEIGHTS.get(concept.type, 0.5)
 
-        weight = confidence * type_weight
+        base_weight = confidence * type_weight
+        total_possible_score += base_weight
 
-        total_weighted_score += weight * similarity
-        total_possible_score += weight
+        entry = match_map.get(concept.text)
+        if not entry:
+            continue
+
+        similarity = entry["similarity"]
+        quality_weight = MATCH_QUALITY_WEIGHTS[entry["bucket"]]
+
+        # similarity floor
+        if similarity < 0.4:
+            continue
+
+        # similarity squashing
+        effective_similarity = similarity ** 2
+
+        total_weighted_score += base_weight * quality_weight * effective_similarity
 
     if total_possible_score == 0:
         return 0.0
